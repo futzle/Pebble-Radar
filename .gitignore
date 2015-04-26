@@ -1,0 +1,11 @@
+
+# Ignore build generated files
+build
+
+.lock-waf_darwin_build
+
+env
+
+src/js/pebble-js-app.js
+
+Portal-files
