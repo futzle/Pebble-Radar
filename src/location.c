@@ -130,6 +130,10 @@ static void selectLocationWindowLoad(Window *w) {
 	Layer *windowLayer = window_get_root_layer(w);
 	GRect windowBounds = layer_get_frame(windowLayer);
 	selectLocationMenuLayer = menu_layer_create(windowBounds);
+#ifdef PBL_COLOR
+	menu_layer_set_normal_colors(selectLocationMenuLayer, GColorWhite, GColorBlack);
+	menu_layer_set_highlight_colors(selectLocationMenuLayer, GColorDarkGreen, GColorWhite);
+#endif
 	menu_layer_set_callbacks(selectLocationMenuLayer, state,
 		(MenuLayerCallbacks){
 			.get_num_sections = selectLocationGetNumSections,

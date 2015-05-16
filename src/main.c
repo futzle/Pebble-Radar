@@ -1,17 +1,21 @@
 #include "main.h"
 #include <pebble.h>
-//#include "build/src/resource_ids.auto.h"
 #include "appinfo.h"
 #include "appdata.h"
 #include "location.h"
 
 // Draw the radar bitmap in a rectangle this big.
+#ifdef PBL_SDK_2
 static const int imageWidth = 120;
 static const int imageHeight = 113;
+#else
+static const int imageWidth = 136;
+static const int imageHeight = 127;
+#endif
 
 Window *mainWindow;	
 // Main layer.
-Layer *mainLayer;
+BitmapLayer *mainLayer;
 // Location.
 bool locationValid = false;
 int32_t crosshairs_x;
@@ -19,6 +23,10 @@ int32_t crosshairs_y;
 // Background (coastline map).
 BitmapLayer *backgroundBitmapLayer;
 GBitmap *background = NULL;
+#ifndef PBL_SDK_2
+uint8_t *pngData = NULL;
+int32_t pngSize;
+#endif
 int backgroundRetries;
 AppTimer* backgroundWatchdog = NULL;
 // Radar (overlay).
@@ -41,12 +49,20 @@ char frameAgeText[12];
 // Radar scale.
 BitmapLayer *radarScaleLayer;
 GBitmap *radarScaleBitmap = NULL;
+#ifdef PBL_SDK_2
 // Action bar.
 ActionBarLayer *actionBarLayer;
 GBitmap *locationIcon = NULL;
 GBitmap *pauseIcon = NULL;
 GBitmap *playIcon = NULL;
 GBitmap *magnifyIcon = NULL;
+#endif
+#ifndef PBL_SDK_2
+GBitmap *locationIcon = NULL;
+BitmapLayer *locationIconBitmapLayer = NULL;
+GBitmap *magnifyIcon = NULL;
+BitmapLayer *magnifyIconBitmapLayer = NULL;
+#endif
 // Status layer.
 Layer *statusLayer;
 TextLayer *statusTextLayer;
@@ -68,13 +84,15 @@ static void clearStatus(void) {
 
 static void drawStatusLayer(Layer *statusLayer, GContext *statusContext) {
 	GRect statusLayerSize = layer_get_bounds(statusLayer);
-	graphics_context_set_fill_color(statusContext, GColorBlack);
+	GColor edgeColor = COLOR_FALLBACK(GColorDarkGreen, GColorBlack);
+	graphics_context_set_fill_color(statusContext, edgeColor);
 	graphics_fill_rect(statusContext, GRect(
 		statusLayerSize.origin.x + 8,
 		statusLayerSize.origin.y + 6,
 		statusLayerSize.size.w - 16,
 		statusLayerSize.size.h - 12), 4, GCornersAll);
-	graphics_context_set_fill_color(statusContext, GColorWhite);
+	GColor fillColor = COLOR_FALLBACK(GColorMintGreen, GColorWhite);
+	graphics_context_set_fill_color(statusContext, fillColor);
 	graphics_fill_rect(statusContext, GRect(
 		statusLayerSize.origin.x + 10,
 		statusLayerSize.origin.y + 8,
@@ -134,6 +152,10 @@ static void getRadar(uint32_t misses) {
 		setStatusMessage("Getting radar image from Bureau of Meteorology...\nFailed");
 		return;
 	}
+#ifndef PBL_SDK_2
+	if (radar) gbitmap_destroy(radar);
+	radar = NULL;
+#endif
 	DictionaryIterator *iter;
 	app_message_outbox_begin(&iter);
 	dict_write_uint32(iter, GET_RADAR, app_message_inbox_size_maximum() - 100);
@@ -160,10 +182,17 @@ static void updateFrameAge(uint32_t min) {
 	text_layer_set_text(frameAgeLayer, frameAgeText);	
 }
 
+static void unconfigureClickHandlers(void *context);
+static void configureClickHandlers(void *context);
+
 static void supersedeFrame(void) {
 	if (frameAge >= frameSupersedeAge) {
 		// Image is old enough that there may be a replacement.
+#ifdef PBL_SDK_2
 		action_bar_layer_remove_from_window(actionBarLayer);
+#else
+		window_set_click_config_provider(mainWindow, unconfigureClickHandlers);
+#endif
 		setStatusMessage("Updating radar image from Bureau of Meteorology...");
 		radarRetries = 3;
 		getRadar(0);
@@ -197,7 +226,15 @@ static void zoomCleanup(void) {
 	layer_remove_from_parent(bitmap_layer_get_layer(backgroundBitmapLayer));
 	layer_remove_from_parent(text_layer_get_layer(frameAgeLayer));
 	layer_remove_from_parent(bitmap_layer_get_layer(radarBitmapLayer));
+#ifdef PBL_SDK_2
 	action_bar_layer_remove_from_window(actionBarLayer);
+#else
+	window_set_click_config_provider(mainWindow, unconfigureClickHandlers);
+	if (background) gbitmap_destroy(background);
+	background = NULL;
+	if (radar) gbitmap_destroy(radar);
+	radar = NULL;
+#endif
 }
 
 static void continueZoom(void *context) {
@@ -231,13 +268,21 @@ static void zoomOut(ClickRecognizerRef recognizer, void *context) {
 
 static void selectLocation(ClickRecognizerRef recognizer, void *context) {
 	APP_LOG(APP_LOG_LEVEL_DEBUG, "Selecting location");
+#ifdef PBL_SDK_2
 	action_bar_layer_remove_from_window(actionBarLayer);
+#else
+	window_set_click_config_provider(mainWindow, unconfigureClickHandlers);
+#endif
 	setStatusMessage("Getting radar list...");
 	selectLocationGetRadarForStates();
 }
 
 void prepareForCancelledSelectLocation(void) {
+#ifdef PBL_SDK_2
 	action_bar_layer_add_to_window(actionBarLayer, mainWindow);
+#else
+	window_set_click_config_provider(mainWindow, configureClickHandlers);
+#endif
 }
 
 void finishSelectLocation(const char *message) {
@@ -252,10 +297,23 @@ static void recoverMissing(void *context) {
 	selectLocationGetRadarForStates();
 }
 
+static void unconfigureClickHandlers(void *context) {
+	window_single_click_subscribe(BUTTON_ID_DOWN, NULL);
+	window_single_click_subscribe(BUTTON_ID_UP, NULL);
+#ifndef PBL_SDK_2
+	layer_remove_from_parent(bitmap_layer_get_layer(locationIconBitmapLayer));
+	layer_remove_from_parent(bitmap_layer_get_layer(magnifyIconBitmapLayer));
+#endif
+}
+
 static void configureClickHandlers(void *context) {
 	window_single_click_subscribe(BUTTON_ID_DOWN, zoomIn);
 	window_long_click_subscribe(BUTTON_ID_DOWN, 500, zoomOutStart, zoomOut);
 	window_single_click_subscribe(BUTTON_ID_UP, selectLocation);
+#ifndef PBL_SDK_2
+	layer_add_child(bitmap_layer_get_layer(mainLayer), bitmap_layer_get_layer(locationIconBitmapLayer));
+	layer_add_child(bitmap_layer_get_layer(mainLayer), bitmap_layer_get_layer(magnifyIconBitmapLayer));
+#endif
 }
 
 // Called when a message is received from PebbleKitJS
@@ -308,7 +366,7 @@ static void in_received_handler(DictionaryIterator *received, void *context) {
 			text_layer_set_font(radarNameLayer, fonts_get_system_font(FONT_KEY_GOTHIC_18_BOLD));
 			text_layer_set_text(radarNameLayer, radarName);
 			text_layer_set_text_alignment(radarNameLayer, GTextAlignmentCenter);
-			layer_add_child(mainLayer, text_layer_get_layer(radarNameLayer));
+			layer_add_child(bitmap_layer_get_layer(mainLayer), text_layer_get_layer(radarNameLayer));
 
 			// Display an icon representing the radar scale.
 			switch (getRadarScale()) {
@@ -326,7 +384,9 @@ static void in_received_handler(DictionaryIterator *received, void *context) {
 				break;
 			}
 			bitmap_layer_set_bitmap(radarScaleLayer, radarScaleBitmap);
-			layer_add_child(mainLayer, bitmap_layer_get_layer(radarScaleLayer));
+			GColor RadarScaleBackgroundColor = COLOR_FALLBACK(GColorDarkGreen, GColorWhite);
+			bitmap_layer_set_background_color(radarScaleLayer, RadarScaleBackgroundColor);
+			layer_add_child(bitmap_layer_get_layer(mainLayer), bitmap_layer_get_layer(radarScaleLayer));
 		
 			// Having got the radar name, get the background (terrain) image.
 			backgroundRetries = 3; 
@@ -354,9 +414,22 @@ static void in_received_handler(DictionaryIterator *received, void *context) {
 	tuple = dict_find(received, START_BACKGROUND);
 	if(tuple) {
 		// About to receive background image in chunks.
-		app_timer_cancel(backgroundWatchdog);
-		setStatusMessage("Getting terrain from Bureau of Meteorology...\nDone.");
-		APP_LOG(APP_LOG_LEVEL_DEBUG, "Receiving background");
+		tuple = dict_find(received, DATA_LENGTH);
+		if (tuple)
+		{
+#ifndef PBL_SDK_2
+			if (pngData) free(pngData);
+			pngSize = tuple->value->uint32;
+			if ((pngData = malloc(pngSize))) {
+				APP_LOG(APP_LOG_LEVEL_DEBUG, "Allocated %u bytes", (unsigned int) pngSize);
+			} else {
+				APP_LOG(APP_LOG_LEVEL_ERROR, "Could not allocate %u bytes", (unsigned int) pngSize);
+			}
+#endif
+			app_timer_cancel(backgroundWatchdog);
+			setStatusMessage("Getting terrain from Bureau of Meteorology...\nDone.");
+			APP_LOG(APP_LOG_LEVEL_DEBUG, "Receiving background");
+		}
 		return;
 	}
 	tuple = dict_find(received, BACKGROUND_DATA);
@@ -370,7 +443,11 @@ static void in_received_handler(DictionaryIterator *received, void *context) {
 			tuple = dict_find(received, DATA_LENGTH);
 			if (tuple) {
 				int length = tuple->value->int32;
+#ifdef PBL_SDK_2
 				memcpy(background->addr + offset, data, length);
+#else
+				memcpy(pngData + offset, data, length);
+#endif
 			}
 		}
 		return;
@@ -379,8 +456,16 @@ static void in_received_handler(DictionaryIterator *received, void *context) {
 	if(tuple) {
 		// All chunks have been transmitted.  Show background image.
 		APP_LOG(APP_LOG_LEVEL_DEBUG, "Finished receiving background");
+#ifndef PBL_SDK_2
+		background = gbitmap_create_from_png_data(pngData, pngSize);
+		if (!background) {
+			APP_LOG(APP_LOG_LEVEL_DEBUG, "Failed to create bitmap from PNG data");
+		}
+		free(pngData);
+		pngData = NULL;
+#endif
 		bitmap_layer_set_bitmap(backgroundBitmapLayer, background);
-		layer_add_child(mainLayer, bitmap_layer_get_layer(backgroundBitmapLayer));
+		layer_add_child(bitmap_layer_get_layer(mainLayer), bitmap_layer_get_layer(backgroundBitmapLayer));
 		
 		// Having displayed the background, move on to the radar overlay.
 		setStatusMessage("Getting radar image from Bureau of Meteorology...");
@@ -422,15 +507,32 @@ static void in_received_handler(DictionaryIterator *received, void *context) {
 	tuple = dict_find(received, START_RADAR);
 	if(tuple) {
 		// About to receive radar image in chunks.
-		app_timer_cancel(radarWatchdog);
-		setStatusMessage("Getting radar image from Bureau of Meteorology...\nDone.");
-		tuple = dict_find(received, FRAME_AGE);
+		tuple = dict_find(received, DATA_LENGTH);
 		if (tuple)
 		{
-			frameAge = tuple->value->int32;
-			text_layer_set_font(frameAgeLayer, fonts_get_system_font(FONT_KEY_GOTHIC_14));
-			updateFrameAge(frameAge / 60);
-			layer_add_child(mainLayer, text_layer_get_layer(frameAgeLayer));		
+#ifndef PBL_SDK_2
+			if (pngData) free(pngData);
+			pngSize = tuple->value->uint32;
+			if ((pngData = malloc(pngSize))) {
+				APP_LOG(APP_LOG_LEVEL_DEBUG, "Allocated %u bytes", (unsigned int) pngSize);
+			} else {
+				APP_LOG(APP_LOG_LEVEL_ERROR, "Could not allocate %u bytes", (unsigned int) pngSize);
+			}
+#endif
+			app_timer_cancel(radarWatchdog);
+			setStatusMessage("Getting radar image from Bureau of Meteorology...\nDone.");
+			tuple = dict_find(received, FRAME_AGE);
+			if (tuple)
+			{
+				frameAge = tuple->value->int32;
+				GColor frameAgeTextColor = COLOR_FALLBACK(GColorWhite, GColorBlack);
+				GColor frameAgeBackgroundColor = COLOR_FALLBACK(GColorClear, GColorWhite);
+				text_layer_set_text_color(frameAgeLayer, frameAgeTextColor);
+				text_layer_set_background_color(frameAgeLayer, frameAgeBackgroundColor);
+				text_layer_set_font(frameAgeLayer, fonts_get_system_font(FONT_KEY_GOTHIC_14));
+				updateFrameAge(frameAge / 60);
+				layer_add_child(bitmap_layer_get_layer(mainLayer), text_layer_get_layer(frameAgeLayer));		
+			}
 		}
 		return;
 	}
@@ -445,7 +547,11 @@ static void in_received_handler(DictionaryIterator *received, void *context) {
 			tuple = dict_find(received, DATA_LENGTH);
 			if (tuple) {
 				int length = tuple->value->int32;
+#ifdef PBL_SDK_2
 				memcpy(radar->addr + offset, data, length);
+#else
+				memcpy(pngData + offset, data, length);
+#endif
 			}
 		}
 		return;
@@ -454,19 +560,32 @@ static void in_received_handler(DictionaryIterator *received, void *context) {
 	if(tuple) {
 		// All chunks have been received.  Show radar image.
 		APP_LOG(APP_LOG_LEVEL_DEBUG, "Finished receiving radar");
+#ifndef PBL_SDK_2
+		radar = gbitmap_create_from_png_data(pngData, pngSize);
+		if (!radar) {
+			APP_LOG(APP_LOG_LEVEL_ERROR, "Failed to create bitmap from PNG data");
+		}
+		free(pngData);
+		pngData = NULL;
+#endif
 		bitmap_layer_set_bitmap(radarBitmapLayer, radar);
+#ifdef PBL_SDK_2
 		bitmap_layer_set_compositing_mode(radarBitmapLayer, GCompOpAnd);
-		layer_add_child(mainLayer, bitmap_layer_get_layer(radarBitmapLayer));
+#else
+		bitmap_layer_set_compositing_mode(radarBitmapLayer, GCompOpSet);
+#endif
+		layer_add_child(bitmap_layer_get_layer(backgroundBitmapLayer), bitmap_layer_get_layer(radarBitmapLayer));
 		if (locationValid) {
 			APP_LOG(APP_LOG_LEVEL_DEBUG, "Displaying location crosshairs");
 			GRect layerSize = layer_get_bounds(bitmap_layer_get_layer(backgroundBitmapLayer));
 			bitmap_layer_set_bitmap(crosshairsBitmapLayer, crosshairs);
+			GRect crosshairsBounds = gbitmap_get_bounds(crosshairs);
 			layer_set_frame(bitmap_layer_get_layer(crosshairsBitmapLayer),
 				GRect(
-					crosshairs_x * layerSize.size.w / 2000 + layerSize.size.w/2 - crosshairs->bounds.size.w/2,
-					crosshairs_y * layerSize.size.w / 2000 + layerSize.size.h/2 - crosshairs->bounds.size.h/2,
-					crosshairs->bounds.size.w,
-					crosshairs->bounds.size.h));
+					crosshairs_x * layerSize.size.w / 2000 + layerSize.size.w/2 - crosshairsBounds.size.w/2,
+					crosshairs_y * layerSize.size.w / 2000 + layerSize.size.h/2 - crosshairsBounds.size.h/2,
+					crosshairsBounds.size.w,
+					crosshairsBounds.size.h));
 			layer_add_child(bitmap_layer_get_layer(backgroundBitmapLayer),
 				bitmap_layer_get_layer(crosshairsBitmapLayer));
 			layer_set_hidden(bitmap_layer_get_layer(crosshairsBitmapLayer), false);
@@ -478,7 +597,11 @@ static void in_received_handler(DictionaryIterator *received, void *context) {
 
 		// Done. Reveal the main window behind the status layer.
 		clearStatus();
+#ifdef PBL_SDK_2		
 		action_bar_layer_add_to_window(actionBarLayer, mainWindow);
+#else
+		window_set_click_config_provider(mainWindow, configureClickHandlers);
+#endif
 
 		// Increase the frame age once a minute.
 		if (locationValid) {
@@ -545,11 +668,13 @@ static void in_received_handler(DictionaryIterator *received, void *context) {
 					if (tuple) {
 						char *name = malloc(1 + strlen(tuple->value->cstring));
 						strncpy(name, tuple->value->cstring, strlen(tuple->value->cstring));
+						name[strlen(tuple->value->cstring)] = 0;
 						char *detail = NULL;
 						tuple = dict_find(received, RADAR_DETAIL);
 						if (tuple) {
 							detail = malloc(1 + strlen(tuple->value->cstring));
 							strncpy(detail, tuple->value->cstring, strlen(tuple->value->cstring));
+							detail[strlen(tuple->value->cstring)] = 0;
 						}
 						selectLocationSetRadarInfoForState(s, i, name, detail, id); 
 					}
@@ -598,22 +723,30 @@ static void init(void) {
 	app_message_register_outbox_failed(out_failed_handler);
 	app_message_open(app_message_inbox_size_maximum(), app_message_outbox_size_maximum());
 
+	// Main layer has Radar image.
+#ifdef PBL_SDK_2
+	mainLayer = bitmap_layer_create(GRect(0, 0, 144, 152));
+#else
+	mainLayer = bitmap_layer_create(GRect(0, 0, 144, 168));
+#endif
+	GColor backgroundColor = COLOR_FALLBACK(GColorDarkGreen, GColorWhite);
+	bitmap_layer_set_background_color(mainLayer, backgroundColor);
+	layer_add_child(window_get_root_layer(mainWindow), bitmap_layer_get_layer(mainLayer));
+	
+#ifdef PBL_SDK_2
 	// Action bar icons.
 	locationIcon = gbitmap_create_with_resource(RESOURCE_ID_IMAGE_ICON_CROSSHAIRS);
 	playIcon = gbitmap_create_with_resource(RESOURCE_ID_IMAGE_ICON_PLAY);
 	pauseIcon = gbitmap_create_with_resource(RESOURCE_ID_IMAGE_ICON_PAUSE);
 	magnifyIcon = gbitmap_create_with_resource(RESOURCE_ID_IMAGE_ICON_MAGNIFY);
 
-	// Main layer has Radar image.
-	mainLayer = layer_create(GRect(0, 0, 144, 152));
-	layer_add_child(window_get_root_layer(mainWindow), mainLayer);
-	
 	// Action bar lets user pick scale and site.
 	actionBarLayer = action_bar_layer_create();
 	action_bar_layer_set_icon(actionBarLayer, BUTTON_ID_UP, locationIcon);
 	// action_bar_layer_set_icon(actionBarLayer, BUTTON_ID_SELECT, playIcon);
   	action_bar_layer_set_icon(actionBarLayer, BUTTON_ID_DOWN, magnifyIcon);
 	action_bar_layer_set_click_config_provider(actionBarLayer, configureClickHandlers);
+#endif
 
 	// Status layer pops up with current information about
 	// download status, progress and errors.
@@ -626,19 +759,47 @@ static void init(void) {
 	text_layer_set_font(statusTextLayer, fonts_get_system_font(FONT_KEY_GOTHIC_24_BOLD));
 	text_layer_set_overflow_mode(statusTextLayer, GTextOverflowModeTrailingEllipsis);
 	text_layer_set_text_alignment(statusTextLayer, GTextAlignmentCenter);
+	GColor fillColor = COLOR_FALLBACK(GColorMintGreen, GColorWhite);
+	text_layer_set_background_color(statusTextLayer, fillColor);
+	text_layer_set_text_color(statusTextLayer, GColorBlack);
 	layer_add_child(statusLayer, text_layer_get_layer(statusTextLayer));
 	layer_add_child(window_get_root_layer(mainWindow), statusLayer);
 
 	crosshairs = gbitmap_create_with_resource(RESOURCE_ID_IMAGE_ICON_LOCATION);
-	crosshairsBitmapLayer = bitmap_layer_create(crosshairs->bounds);
+	crosshairsBitmapLayer = bitmap_layer_create(gbitmap_get_bounds(crosshairs));
+#ifdef PBL_SDK_2
 	bitmap_layer_set_compositing_mode(crosshairsBitmapLayer, GCompOpAnd);
 	radarNameLayer = text_layer_create(GRect(0, -3, 124, 21));
-	radarScaleLayer = bitmap_layer_create(GRect(82, 133, 40, 16));
-	radarBitmapLayer = bitmap_layer_create(GRect(1, 18, imageWidth, imageHeight));
-	background = gbitmap_create_blank(GSize(imageWidth, imageHeight));
-	backgroundBitmapLayer = bitmap_layer_create(GRect(1, 18, imageWidth, imageHeight));
-	radar = gbitmap_create_blank(GSize(imageWidth, imageHeight));
-	frameAgeLayer = text_layer_create(GRect(1, 131, 60, 18));
+	radarScaleLayer = bitmap_layer_create(GRect(82, 20 + imageHeight, 40, 16));
+	radarBitmapLayer = bitmap_layer_create(GRect(0, 0, imageWidth, imageHeight));
+	frameAgeLayer = text_layer_create(GRect(1, 18 + imageHeight, 60, 18));
+#else
+	bitmap_layer_set_compositing_mode(crosshairsBitmapLayer, GCompOpSet);
+	radarNameLayer = text_layer_create(GRect(0, -3, 144, 21));
+	radarScaleLayer = bitmap_layer_create(GRect(82, 23 + imageHeight, 40, 16));
+	bitmap_layer_set_compositing_mode(radarScaleLayer, GCompOpSet);
+	radarBitmapLayer = bitmap_layer_create(GRect(0, 0, imageWidth, imageHeight));
+	frameAgeLayer = text_layer_create(GRect(5, 22 + imageHeight, 60, 18));
+	locationIcon = gbitmap_create_with_resource(RESOURCE_ID_IMAGE_ICON_CROSSHAIRS2);
+	locationIconBitmapLayer = bitmap_layer_create(GRect(125, 1, 18, 18));
+	bitmap_layer_set_bitmap(locationIconBitmapLayer, locationIcon);
+	bitmap_layer_set_compositing_mode(locationIconBitmapLayer, GCompOpSet);
+	magnifyIcon = gbitmap_create_with_resource(RESOURCE_ID_IMAGE_ICON_MAGNIFY2);
+	magnifyIconBitmapLayer = bitmap_layer_create(GRect(124, 22 + imageHeight, 18, 18));
+	bitmap_layer_set_bitmap(magnifyIconBitmapLayer, magnifyIcon);
+	bitmap_layer_set_compositing_mode(magnifyIconBitmapLayer, GCompOpSet);
+#endif
+	GColor radarNameTextColor = COLOR_FALLBACK(GColorWhite, GColorBlack);
+	GColor radarNameBackgroundColor = COLOR_FALLBACK(GColorClear, GColorWhite);
+	text_layer_set_text_color(radarNameLayer, radarNameTextColor);
+	text_layer_set_background_color(radarNameLayer, radarNameBackgroundColor);
+#ifdef PBL_SDK_2
+	background = gbitmap_create_blank(GSize(imageWidth, imageHeight), GBitmapFormat1Bit);
+#endif
+	backgroundBitmapLayer = bitmap_layer_create(GRect(4, 20, imageWidth, imageHeight));
+#ifdef PBL_SDK_2
+	radar = gbitmap_create_blank(GSize(imageWidth, imageHeight), GBitmapFormat1Bit);
+#endif
 	
 	setStatusMessage("Connecting to Phone...");
 	APP_LOG(APP_LOG_LEVEL_DEBUG, "Pebble main ready");
@@ -669,18 +830,27 @@ static void deinit(void) {
 		bitmap_layer_destroy(backgroundBitmapLayer);
 	if (background)
 		gbitmap_destroy(background);
+#ifdef PBL_SDK_2
 	if (actionBarLayer)
 		action_bar_layer_destroy(actionBarLayer);
-	if (crosshairsBitmapLayer)
-		bitmap_layer_destroy(crosshairsBitmapLayer);
 	gbitmap_destroy(locationIcon);
 	gbitmap_destroy(playIcon);
 	gbitmap_destroy(pauseIcon);
 	gbitmap_destroy(magnifyIcon);
+#else
+	if (locationIconBitmapLayer)
+		bitmap_layer_destroy(locationIconBitmapLayer);
+	if (magnifyIconBitmapLayer)
+		bitmap_layer_destroy(magnifyIconBitmapLayer);
+	gbitmap_destroy(locationIcon);
+	gbitmap_destroy(magnifyIcon);
+#endif
+	if (crosshairsBitmapLayer)
+		bitmap_layer_destroy(crosshairsBitmapLayer);
 	gbitmap_destroy(crosshairs);
 	text_layer_destroy(statusTextLayer);
 	layer_destroy(statusLayer);
-	layer_destroy(mainLayer);
+	bitmap_layer_destroy(mainLayer);
 	window_destroy(mainWindow);
 }
 

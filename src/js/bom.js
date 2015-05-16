@@ -442,13 +442,18 @@ var RADAR_SITES = {
 };
 
 // #C68600 represents coastline on background images.
+// (Except some maps such as 044, which use slightly different colours.)
 var BACKGROUND_COASTLINE_COLOR1 = 0xC68600;
 var BACKGROUND_COASTLINE_COLOR2 = 0xC08000;
+var BACKGROUND_LAND_COLOR1 = 0xE7DCBD;
+var BACKGROUND_LAND_COLOR2 = 0xE0D8B8;
+var BACKGROUND_OCEAN_COLOR1 = 0xC3D9EB;
+var BACKGROUND_OCEAN_COLOR2 = 0xC0D8E8;
 
 // The top and bottom of the radar images are
 // obscured by text.  Strip them out.
-var IMAGE_HEADER_PIXELS = 15;
-var IMAGE_FOOTER_PIXELS = 15;
+var IMAGE_HEADER_PIXELS = 16;
+var IMAGE_FOOTER_PIXELS = 16;
 
 // BOM backgrounds are 512 pixels square, palette with bitdepth 2 or less.
 function isBomBackgroundImage(pngObject) {

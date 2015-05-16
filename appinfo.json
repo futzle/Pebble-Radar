@@ -3,8 +3,8 @@
   "shortName": "Radar",
   "longName": "Australian Radar",
   "companyName": "Futzle Industries",
-  "versionCode": 2,
-  "versionLabel": "2",
+  "versionCode": 3,
+  "versionLabel": "3",
   "watchapp": {
     "watchface": false
   },
@@ -92,8 +92,18 @@
       },
       {
         "type": "png",
+        "name": "IMAGE_ICON_CROSSHAIRS2",
+        "file": "Crosshairs18.png"
+      },
+      {
+        "type": "png",
         "name": "IMAGE_ICON_MAGNIFY",
         "file": "Magnify16.png"
+      },
+      {
+        "type": "png",
+        "name": "IMAGE_ICON_MAGNIFY2",
+        "file": "Magnify18.png"
       },
       {
         "type": "png",
@@ -111,7 +121,8 @@
     "location"
   ],
   "targetPlatforms": [
-    "aplite"
+    "aplite",
+    "basalt"
   ],
   "sdkVersion": "3"
 }

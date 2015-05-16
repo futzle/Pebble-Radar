@@ -94,7 +94,7 @@ function readChunk(pngStream, chunkStart, previousChunks) {
 }
 
 /* Filter the decompressed PNG stream into scanlines. */
-function filterScanLines(data, width, height, bitDepth) {
+function unfilterScanLines(data, width, height, bitDepth) {
 	// Width must be an integral number of bytes.
 	var width8 = ((width * bitDepth + 7) & ~7) / bitDepth;
 	var result = new Uint8Array(width8 * height * bitDepth / 8);
@@ -199,12 +199,10 @@ function decodePng(pngStream, onSuccess, onFailure) {
 		// All chunks read, now decompress the data in IDAT.
 		switch (result.IHDR.compressionMethod) {
 		case 0:
-	  var inflated = new FlateStream(new Stream(result.IDAT.stream));
-	  // Successfully inflated.
-	  result.IDAT.inflated = inflated.getBytes();
+	  result.IDAT.inflated = pako.inflate(result.IDAT.stream);
 	  // Pass through filter.
 	  result.IDAT.unfiltered =
-		filterScanLines(result.IDAT.inflated, result.IHDR.width, result.IHDR.height, result.IHDR.bitDepth);
+		unfilterScanLines(result.IDAT.inflated, result.IHDR.width, result.IHDR.height, result.IHDR.bitDepth);
 	  // Unpack pixels into bytes.
 	  result.IDAT.unpacked =
 		unpackScanLines(result.IDAT.unfiltered, result.IHDR.width, result.IHDR.height, result.IHDR.bitDepth);
@@ -235,3 +233,146 @@ function decodePng(pngStream, onSuccess, onFailure) {
 	}
 }
 
+/* Prepend a length, and append a CRC, to make a PNG chunk. */
+function makeChunk(tag, data) {
+	var result = new Uint8Array(12 + data.length);
+	writeUInt32BE(result, data.length, 0);
+	result[4] = tag.charCodeAt(0);
+	result[5] = tag.charCodeAt(1);
+	result[6] = tag.charCodeAt(2);
+	result[7] = tag.charCodeAt(3);
+	result.set(data, 8);
+	var crc = crc32(result.subarray(4, result.length - 4));
+	result.set(crc, result.length - 4)
+	return result;
+}
+
+/* Concatenate a bunch of Uint8Arrays, to build a PNG. */
+function concatArrays() {
+    var totalLength = 0;
+    for (var i = 0; i < arguments.length; i++) {
+    	totalLength += arguments[i].length;
+    }
+	var result = new Uint8Array(totalLength);
+	var position = 0;
+	for (var i = 0; i < arguments.length; i++) {
+		result.set(arguments[i], position);
+		position += arguments[i].length;
+	}
+	return result;
+}
+
+/* Write the header chunk. */
+function writeChunkIHDR(pngData) {
+	console.log("Encoding IHDR chunk");
+	var header = new Uint8Array(13);
+	writeUInt32BE(header, pngData.width, 0);
+	writeUInt32BE(header, pngData.height, 4);
+	header[8] = pngData.bitDepth;  // bit depth
+	header[9] = 3;  // indexed
+	header[10] = 0;  // deflate
+	header[11] = 0;  // default filtering
+	header[12] = 0;  // no interlacing
+	return makeChunk("IHDR", header);
+}
+
+/* Write the palette chunk. */
+function writeChunkPLTE(pngData) {
+	console.log("Encoding PLTE chunk");
+	var palette = new Uint8Array(pngData.palette.length * 3);
+	for (var i = 0; i < pngData.palette.length; i++) {
+		palette[i * 3] = pngData.palette[i].red;
+		palette[i * 3 + 1] = pngData.palette[i].green;
+		palette[i * 3 + 2] = pngData.palette[i].blue;
+	}
+	return makeChunk("PLTE", palette);
+}
+
+/* Write the transparency chunk. */
+function writeChunktRNS(pngData) {
+	console.log("Encoding tRNS chunk");
+	var header = new Uint8Array(pngData.palette.length);
+	for (var i = 0; i < pngData.palette.length; ++i) {
+		header[i] = pngData.palette[i].alpha;
+	}
+	return makeChunk("tRNS", header);
+}
+
+/* Pack PNG scan lines into bytes. */
+function packScanLines(data, width, height, bitDepth) {
+	// Packed width must be an integral number of bytes.
+	var width8 = ((width * bitDepth + 7) & ~7) / bitDepth;
+	var result = new Uint8Array(width8 * bitDepth / 8 * height);
+	for (var i = 0; i < width8 * bitDepth / 8 * height; ++i) {
+		result[i] = 0;
+	}
+	for (var y = 0; y < height; ++y) {
+		for (var x = 0; x < width; ++x) {
+			var val;
+			switch (bitDepth) {
+			case 1:
+				result[y * width8 / 8 + Math.floor(x/8)] |=
+					data[y * width + x] << (7 - x % 8);
+				break;
+			case 2:
+				result[y * width8 / 4 + Math.floor(x/4)] |=
+					data[y * width + x] << (3 - x % 4) * 2;
+				break;
+			case 4:
+				result[y * width8 / 2 + Math.floor(x/2)] |=
+					data[y * width + x] << (1 - x % 2) * 4;
+				break;
+			case 8:
+				result[y * width8 + x] = data[y * width + x];
+				break;
+			}
+		}
+	}
+	return result;
+}
+
+/* Apply the "none" filter to the scan lines, which adds a extra byte. */
+function filterScanLines(packedData, width, height, bitDepth) {
+	// Width must be an integral number of bytes.
+	var width8 = ((width * bitDepth + 7) & ~7) / bitDepth;
+	var result = new Uint8Array(height * (width8 * bitDepth / 8 + 1));
+	for (var y = 0; y < height; ++y) {
+		result[y * (width8 * bitDepth / 8 + 1)] = 0;  // No filter.
+		for (var x = 0; x < width8 * bitDepth / 8; ++x) {
+			result[y * (width8 * bitDepth / 8 + 1) + x + 1] =
+				packedData[y * width8 * bitDepth / 8 + x];
+		}
+	}
+	return result;
+}
+
+/* Write the compressed image data chunk. */
+function writeChunkIDAT(pngData) {
+	console.log("Encoding IDAT chunk");
+	var packed = packScanLines(pngData.data, pngData.width, pngData.height, pngData.bitDepth);
+	var filtered = filterScanLines(packed, pngData.width, pngData.height, pngData.bitDepth);
+	return makeChunk("IDAT", pako.deflate(filtered));
+}
+
+/* Write the image-end chunk. */
+function writeChunkIEND(pngData) {
+	console.log("Encoding IEND chunk");
+	return makeChunk("IEND", new Uint8Array(0));
+}
+
+/* Encode an image as a PNG stream, then call onSuccess() with the stream. */
+function encodePng(pngData, width, height, context, onSuccess, onFailure) {
+	var ihdrChunk = writeChunkIHDR(pngData);
+	var plteChunk = writeChunkPLTE(pngData);
+	var trnsChunk = writeChunktRNS(pngData);
+	var idatChunk = writeChunkIDAT(pngData);
+	var iendChunk = writeChunkIEND(pngData);
+	var result = concatArrays(
+			new Uint8Array([137, 80, 78, 71, 13, 10, 26, 10]), // PNG signature.
+			ihdrChunk,
+			plteChunk,
+			trnsChunk,
+			idatChunk,
+			iendChunk);
+	onSuccess(result, width, height, context, onFailure);	
+}
