@@ -162,3 +162,5 @@ Pebble.addEventListener("appmessage",
 			console.log("Unknown message received.");
 		}
 	});
+
+console.log("JavaScript top level");
