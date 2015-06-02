@@ -126,8 +126,8 @@ static void getBackground(void) {
 	DictionaryIterator *iter;
 	app_message_outbox_begin(&iter);
 	dict_write_uint32(iter, GET_BACKGROUND, app_message_inbox_size_maximum() - 100);
-	dict_write_uint8(iter, IMAGE_WIDTH, imageWidth);
-	dict_write_uint8(iter, IMAGE_HEIGHT, imageHeight);
+	dict_write_uint32(iter, IMAGE_WIDTH, imageWidth);
+	dict_write_uint32(iter, IMAGE_HEIGHT, imageHeight);
 	dict_write_uint8(iter, RADAR_ID, getRadarId());
 	dict_write_uint8(iter, RADAR_SCALE, getRadarScale());
 	dict_write_end(iter);
@@ -159,8 +159,8 @@ static void getRadar(uint32_t misses) {
 	DictionaryIterator *iter;
 	app_message_outbox_begin(&iter);
 	dict_write_uint32(iter, GET_RADAR, app_message_inbox_size_maximum() - 100);
-	dict_write_uint8(iter, IMAGE_WIDTH, imageWidth);
-	dict_write_uint8(iter, IMAGE_HEIGHT, imageHeight);
+	dict_write_uint32(iter, IMAGE_WIDTH, imageWidth);
+	dict_write_uint32(iter, IMAGE_HEIGHT, imageHeight);
 	dict_write_uint8(iter, RADAR_ID, getRadarId());
 	dict_write_uint8(iter, RADAR_SCALE, getRadarScale());
 	dict_write_uint32(iter, RADAR_MISSES, misses);

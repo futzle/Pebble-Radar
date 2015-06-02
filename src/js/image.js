@@ -11,6 +11,8 @@ var greyLevels = new Uint8Array(
 
 /* Rescale a greyscale bitmap to a smaller size. */
 function resizeBitmap(originalData, originalWidth, originalHeight, newWidth, newHeight) {
+	console.log("Resizing bitmap from " + originalWidth + "x" + originalHeight + " to " +
+		newWidth + "x" + newHeight);
 	var newData = new Uint8Array(newWidth * newHeight);	
 	// Iterate over every new pixel (in the smaller bitmap).
 	// A new pixel may straddle partial pixels in the original image.
