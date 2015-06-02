@@ -3,8 +3,8 @@
   "shortName": "Radar",
   "longName": "Australian Radar",
   "companyName": "Futzle Industries",
-  "versionCode": 3,
-  "versionLabel": "3",
+  "versionCode": 4,
+  "versionLabel": "4",
   "watchapp": {
     "watchface": false
   },

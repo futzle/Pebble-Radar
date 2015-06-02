@@ -107,13 +107,6 @@ function partitionAndResizeBackgroundBitmap(pngObject, newWidth, newHeight, onFa
 		}
 	}
 	console.log("Resized background bitmap, " + resized.length + " pixels");
-	/*
-	for (var y = 0; y < newHeight; ++y ) {
-		for (var x = 0; x < newWidth; ++x) {
-			console.log("pixel " + x + "," + y + ": " + resized[y * newWidth + x]);
-		}
-	}
-	*/
 	if (isPng) {
 		console.log("Packing PNG");
 		var pngData = {

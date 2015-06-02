@@ -18,8 +18,8 @@ function readChunkPLTE(chunkData) {
 	if (chunkData.length % 3 != 0) {
 		throw "Palette is not multiple of three bytes long";
 	}
-	var palette = new Array;
-	for (var i = 0; i * 3 < chunkData.length; ++i) {
+	var palette = new Array(chunkData.length / 3);
+	for (var i = 0; i < palette.length; ++i) {
 		// RRGGBB format.
 		palette[i] = chunkData[i * 3] << 16 |
 			chunkData[i * 3 + 1] << 8 |

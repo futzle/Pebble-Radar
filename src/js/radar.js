@@ -76,15 +76,6 @@ function resizeRadarBitmap(pngObject, newWidth, newHeight, onFailure, context) {
 		bitmap = floydSteinberg(resized, newWidth, newHeight);
 	}	
 	console.log("Resized radar bitmap, " + bitmap.length + " pixels");
-	/*
-	for (var y = 0; y < newHeight; ++y ) {
-		var row = "";
-		for (var x = 0; x < newWidth; ++x) {
-			row += bitmap[y * newWidth + x] + " ";
-		}
-		console.log("row " + y + ": " + row);
-	}
-	*/
 	if (isPng) {
 		console.log("Packing PNG");
 		var pngData = {
@@ -95,19 +86,19 @@ function resizeRadarBitmap(pngObject, newWidth, newHeight, onFailure, context) {
 				{ "red": 0xFF, "green": 0xFF, "blue": 0xFF, "alpha": 0 },
 				{ "red": 0xFF, "green": 0xFF, "blue": 0xFF, "alpha": 0xFF },
 				{ "red": 0xAA, "green": 0xFF, "blue": 0xAA, "alpha": 0xFF },
-				{ "red": 0xAA, "green": 0xFF, "blue": 0xAA, "alpha": 0xFF },
-				{ "red": 0x55, "green": 0xFF, "blue": 0x55, "alpha": 0xFF },
 				{ "red": 0x55, "green": 0xFF, "blue": 0x55, "alpha": 0xFF },
 				{ "red": 0x00, "green": 0xFF, "blue": 0x00, "alpha": 0xFF },
-				{ "red": 0x00, "green": 0xFF, "blue": 0x00, "alpha": 0xFF },
 				{ "red": 0x00, "green": 0xAA, "blue": 0x00, "alpha": 0xFF },
-				{ "red": 0x00, "green": 0xAA, "blue": 0x00, "alpha": 0xFF },
-				{ "red": 0x00, "green": 0x55, "blue": 0x00, "alpha": 0xFF },
 				{ "red": 0x00, "green": 0x55, "blue": 0x00, "alpha": 0xFF },
 				{ "red": 0x00, "green": 0x00, "blue": 0x00, "alpha": 0xFF },
 				{ "red": 0x55, "green": 0x00, "blue": 0x00, "alpha": 0xFF },
 				{ "red": 0xAA, "green": 0x00, "blue": 0x00, "alpha": 0xFF },
-				{ "red": 0xFF, "green": 0x00, "blue": 0x00, "alpha": 0xFF }
+				{ "red": 0xFF, "green": 0x00, "blue": 0x00, "alpha": 0xFF },
+				{ "red": 0xFF, "green": 0x00, "blue": 0x55, "alpha": 0xFF },
+				{ "red": 0xFF, "green": 0x00, "blue": 0xAA, "alpha": 0xFF },
+				{ "red": 0xFF, "green": 0x00, "blue": 0xFF, "alpha": 0xFF },
+				{ "red": 0xFF, "green": 0x55, "blue": 0xFF, "alpha": 0xFF },
+				{ "red": 0xFF, "green": 0xAA, "blue": 0xFF, "alpha": 0xFF }
 		    ],
 		    "data": bitmap
   		};
