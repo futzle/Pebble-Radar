@@ -100,19 +100,12 @@ var RADAR_SITES = {
     "scale": [ 1, 2, 3 ],
     "updatePeriod": 600, "updateOffset": 0, "updateLatency": 240
   },
-  "18": {
-    "location": "Weipa",
-    "state": "Queensland",
-    "latitude": -12.67, "longitude": 141.92,
-    "scale": [ 1, 2, 3 ],
-    "updatePeriod": 600, "updateOffset": 0, "updateLatency": 240
-  },
   "19": {
     "location": "Cairns",
     "detail": "Saddle Mountain",
     "state": "Queensland",
     "latitude": -16.82, "longitude": 145.68,
-    "scale": [ 1, 2, 3 ],
+    "scale": [ 1, 2, 3, 4 ],
     "updatePeriod": 600, "updateOffset": 0, "updateLatency": 240
   },
   "22": {
@@ -414,7 +407,7 @@ var RADAR_SITES = {
     "detail": "Hervey Range",
     "state": "Queensland",
     "latitude": -19.42, "longitude": 146.55,
-    "scale": [ 1, 2, 3 ],
+    "scale": [ 1, 2, 3, 4 ],
     "updatePeriod": 600, "updateOffset": 0, "updateLatency": 240
   },
   "75": {
@@ -438,6 +431,13 @@ var RADAR_SITES = {
     "latitude": -11.65, "longitude": 133.38,
     "scale": [ 1, 2, 3, 4 ],
     "updatePeriod": 360, "updateOffset": 0, "updateLatency": 240
+  },
+  "78": {
+    "location": "Weipa",
+    "state": "Queensland",
+    "latitude": -12.67, "longitude": 141.92,
+    "scale": [ 1, 2, 3, 4 ],
+    "updatePeriod": 600, "updateOffset": 0, "updateLatency": 240
   }
 };
 
