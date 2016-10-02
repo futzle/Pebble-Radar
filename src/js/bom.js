@@ -342,13 +342,6 @@ var RADAR_SITES = {
     "scale": [ 1, 2, 3, 4 ],
     "updatePeriod": 600, "updateOffset": 0, "updateLatency": 240
   },
-  "65": {
-    "location": "Tennant Creek",
-    "state": "Northern Territory",
-    "latitude": -19.64, "longitude": 134.18,
-    "scale": [ 1, 2, 3 ],
-    "updatePeriod": 600, "updateOffset": 0, "updateLatency": 240
-  },
   "66": {
     "location": "Brisbane",
     "detail": "Mt Stapylton",
