@@ -205,6 +205,13 @@ var RADAR_SITES = {
     "updatePeriod": 600, "updateOffset": 0, "updateLatency": 240,
     "redirect": "76"
   },
+  "38": {
+    "location": "Newdegate",
+    "state": "Western Australia",
+    "latitude": -33.10, "longitude": 119.01,
+    "scale": [ 1, 2, 3, 4 ],
+    "updatePeriod": 360, "updateOffset": 0, "updateLatency": 240
+  },
   "39": {
     "location": "Halls Creek",
     "state": "Western Australia",
